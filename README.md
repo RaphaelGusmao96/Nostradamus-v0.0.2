@@ -1,43 +1,48 @@
-# Nostradamus - Bot de Negociação de Criptomoedas
+Nostradamus: Bot de Negociação de Criptomoedas
 
-Nostradamus é um bot de negociação de criptomoedas desenvolvido em Node.js, que utiliza a API da Binance para realizar operações de compra e venda automatizadas com base em indicadores técnicos.
+Nostradamus é um bot de negociação de criptomoedas automatizado que utiliza indicadores técnicos para tomar decisões de compra e venda no mercado. Ele foi desenvolvido para operar na plataforma Binance e pode ser personalizado para atender a diferentes estratégias de negociação.
 
-## Características
+Características:
 
-- Utiliza a API da Binance para obter dados de mercado em tempo real e executar ordens de compra e venda.
-- Implementa indicadores técnicos como RSI, Bandas de Bollinger e MACD para tomar decisões de negociação.
-- Suporta a configuração de parâmetros como stop loss, trailing stop loss e tamanho da posição.
-- Registra as atividades de negociação em um arquivo de texto para análise posterior.
+Utiliza a API da Binance para obter dados do mercado e enviar ordens de negociação.
+Calcula indicadores técnicos como RSI (Índice de Força Relativa), Bandas de Bollinger e MACD (Convergência/Divergência das Médias Móveis) para análise de mercado.
 
-## Pré-requisitos
+Implementa um sistema de stop loss e trailing stop loss para gerenciamento de riscos.
 
-- Node.js
-- Conta na Binance com API Key e Secret Key
+Registra dados de negociação em um arquivo de texto para análise posterior.
 
-## Configuração
+Reage automaticamente a sinais de compra e venda com base nas condições definidas nos indicadores técnicos.
 
-1. Clone o repositório:
+Configuração:
 
-   ```bash
-   git clone https://github.com/seu-usuario/nostradamus-bot.git
-   cd nostradamus-bot
+Clone o repositório do bot para o seu ambiente local.
 
-Instale as dependências:
+Instale as dependências necessárias usando o comando npm install.
 
-npm install
+Crie um arquivo .env na raiz do projeto e adicione suas chaves API e Secret da Binance, bem como outras configurações do bot:
 
-Crie um arquivo .env na raiz do projeto e adicione suas chaves da API da Binance:
+makefile
+Copy code
+API_KEY=sua_chave_api_binance
+SECRET_KEY=sua_chave_secreta_binance
+PROFITABILITY=0.01
+BUY_DISCOUNT=0.01
+Ajuste as configurações do bot no arquivo index.js conforme necessário, incluindo parâmetros de indicadores técnicos e tamanho da posição.
 
-API_KEY=sua_api_key
-SECRET_KEY=sua_secret_key
+Execução:
 
-Configure os parâmetros de negociação no arquivo index.js de acordo com suas preferências.
+Para iniciar o bot, execute o seguinte comando no terminal:
 
-Para iniciar o bot, execute:
+bash
+Copy code
 node index.js
 
+O bot começará a monitorar o mercado e executará ordens de compra e venda com base nos sinais gerados pelos indicadores técnicos.
 
-Aviso Legal
-Este bot é fornecido "como está" e não garante lucros. A negociação de criptomoedas envolve riscos significativos e pode resultar na perda total de seu investimento. Use por sua própria conta e risco.
+ATENÇÃO:
 
+O uso de bots de negociação envolve riscos. É importante testar a estratégia em um ambiente de sandbox ou com quantidades pequenas antes de operar com capital significativo.
 
+Certifique-se de entender como os indicadores técnicos funcionam e como eles influenciam as decisões de negociação do bot.
+
+Monitore regularmente o desempenho do bot e faça ajustes conforme necessário para otimizar a estratégia de negociação.
