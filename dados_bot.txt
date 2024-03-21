@@ -1,0 +1,4 @@
+2024-03-12T22:12:49.375Z: Condição de compra atendida: false
+2024-03-12T22:12:49.376Z: Alvo de compra definido: 70291.0989
+2024-03-12T23:52:14.078Z: Condição de compra atendida: false
+2024-03-12T23:52:14.079Z: Alvo de compra definido: 70741.143
