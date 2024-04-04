@@ -207,6 +207,8 @@ async function initializeIndicators(symbol) {
     calculateBollingerBands();
     calculateMACD();
 
+    
+
     // Verifique se os indicadores já foram inicializados
     if (!indicatorsInitialized) {
       console.log("Indicadores calculados e monitoramento \x1b[32mOK\x1b[0m.");
@@ -286,9 +288,6 @@ let reconnectAttempts = 0;
 let isConnected = false;
 let buyConditionsTrueCount = 0;
 let sellConditionsTrueCount = 0;
-let isOrderExecuted = false;
-let buyOrderSent = false;
-const CONSECUTIVE_COUNT = 10;
 
 async function connectWebSocket() {
     if (isConnected) return;
@@ -314,119 +313,136 @@ async function connectWebSocket() {
 
     ws.onmessage = async (event) => {
       try {
-          const obj = JSON.parse(event.data);
-          const kline = obj.k;
-          const currentPrice = parseFloat(kline.c);
-          const currentVolume = parseFloat(kline.v);
-          const currentHigh = parseFloat(kline.h);
-          const currentLow = parseFloat(kline.l);
-  
-          console.log(`Alto capturado: ${currentHigh}, Baixo capturado: ${currentLow}`);
-  
-          if (!isNaN(currentHigh) && !isNaN(currentLow)) {
-              tradeState.highPrices.push(currentHigh);
-              tradeState.lowPrices.push(currentLow);
-          } else {
-              console.log('Valores inválidos recebidos para Alto ou Baixo.');
-          }
-  
-          tradeState.closingPrices.push(currentPrice);
-          tradeState.volume.push(currentVolume);
-  
-          console.log(`Novos dados: Preço: ${currentPrice}, Volume: ${currentVolume}, Alto: ${currentHigh}, Baixo: ${currentLow}`);
-  
-          if (!indicatorsInitialized && !isIndicatorsInitializationAttempted) {
-              isIndicatorsInitializationAttempted = true;
-              await initializeIndicators(process.env.SYMBOL);
-          }
-  
-          calculateRSI();
-          calculateBollingerBands();
-          calculateMACD();
-  
-          const emaPeriod = 10;
-          const ema = calculateEMA(tradeState.closingPrices, emaPeriod);
-  
-          if (tradeState.closingPrices.length >= 15) { // Garante que há dados suficientes para calcular o ATR
-              const atr = calculateATR(14);
-              console.log(`ATR: ${atr}`);
-              if (isFinite(atr)) {
-                  const atrMultiplier = 0.1;
-                  const adjustedBuyConditionsCount = Math.max(3, Math.round(atr * atrMultiplier));
-                  const adjustedSellConditionsCount = Math.max(3, Math.round(atr * atrMultiplier));
-  
-                  console.log(`Condições ajustadas: Compra: ${adjustedBuyConditionsCount}, Venda: ${adjustedSellConditionsCount}`);
-  
-                  if (tradeState.rsi !== null && tradeState.bbUpper !== null && tradeState.bbLower !== null && tradeState.macd !== null && tradeState.macdSignal !== null) {
-                      const buyConditionsMet = [
-                          tradeState.rsi <= config.RSI_OVERSOLD + config.RSI_BUFFER,
-                          currentPrice < tradeState.bbLower,
-                          tradeState.macd < tradeState.macdSignal,
-                          currentVolume > averageVolume(tradeState.volume, 15),
-                          currentPrice > ema
-                      ].filter(condition => condition).length >= adjustedBuyConditionsCount;
-  
-                      buyConditionsTrueCount = buyConditionsMet ? buyConditionsTrueCount + 1 : 0;
-                      console.log(`Contador de Condições de Compra: ${buyConditionsTrueCount}`);
-  
-                      if (buyConditionsTrueCount >= CONSECUTIVE_COUNT && !tradeState.isBuying && buyCount < MAX_BUY_COUNT) {
-                          tradeState.buyPrice = currentPrice * (1 - config.BUY_DISCOUNT);
-                          tradeState.isBuying = true;
-                          console.log(`Enviando ordem de BUY: Quantidade - ${config.POSITION_SIZE}, Preço - $:${tradeState.buyPrice.toFixed(2)}`);
-                          await newOrder(config.POSITION_SIZE, "BUY", currentPrice);
-                          console.log(`Ordem de BUY executada: Quantidade - ${config.POSITION_SIZE}, Preço Total - $:${(tradeState.buyPrice * config.POSITION_SIZE).toFixed(2)}`);
-                          tradeState.sellPrice = currentPrice * (1 + config.PROFITABILITY);
-                          tradeState.stopLossPrice = currentPrice * (1 - config.STOP_LOSS_PERCENT / 100);
-                          buyCount++;
-                          buyConditionsTrueCount = 0;
-                          console.log(`Compra executada com sucesso. Quantidade: ${config.POSITION_SIZE}, Preço Total Pago: $:${(tradeState.buyPrice * config.POSITION_SIZE).toFixed(2)}`);
-                      }
-  
-                      if (tradeState.isBuying) {
-                          const sellConditionsMet = [
-                              tradeState.rsi >= config.RSI_OVERBOUGHT - config.RSI_BUFFER,
-                              currentPrice > tradeState.bbUpper,
-                              tradeState.macd > tradeState.macdSignal,
-                              currentVolume > averageVolume(tradeState.volume, 20),
-                              currentPrice < ema
-                          ].filter(condition => condition).length >= adjustedSellConditionsCount;
-  
-                          sellConditionsTrueCount = sellConditionsMet ? sellConditionsTrueCount + 1 : 0;
-                          console.log(`Contador de Condições de Venda: ${sellConditionsTrueCount}`);
-  
-                          if (sellConditionsTrueCount >= CONSECUTIVE_COUNT || currentPrice <= tradeState.buyPrice * 0.98) {
-                              const executedSellPrice = currentPrice;
-                              await newOrder(config.POSITION_SIZE, "SELL", executedSellPrice);
-                              const profitOrLoss = (executedSellPrice - tradeState.buyPrice) * config.POSITION_SIZE;
-                                                          console.log(`Venda executada: Quantidade - ${config.POSITION_SIZE}, Preço Total de Venda - $:${(executedSellPrice * config.POSITION_SIZE).toFixed(2)}. ${(profitOrLoss > 0) ? "\x1b[32mLucro\x1b[0m" : "\x1b[31mPrejuízo\x1b[0m"}: $:${profitOrLoss.toFixed(2)}`);
-                              tradeState.sellPrice = 0;
-                              tradeState.stopLossPrice = 0;
-                              tradeState.isBuying = false;
-                              isOrderExecuted = false;
-                              buyCount = 0;
-                              sellConditionsTrueCount = 0;
-                              buyOrderSent = false;
-                              console.log("Venda executada com sucesso. Preço de venda: $:" + executedSellPrice.toFixed(2));
-                          } else if (!sellConditionsMet) {
-                              console.log("Condições de venda não atendidas. Contador reiniciado.");
-                          }
-                      }
-  
-                      if (tradeState.isBuying && currentPrice > tradeState.buyPrice) {
-                          tradeState.stopLossPrice = calculateTrailingStopLoss(currentPrice, tradeState.buyPrice);
-                      }
-                  }
+        const obj = JSON.parse(event.data);
+        const kline = obj.k;
+        const currentPrice = parseFloat(kline.c);
+        const currentVolume = parseFloat(kline.v);
+        const currentHigh = parseFloat(kline.h);
+        const currentLow = parseFloat(kline.l);
+    
+        console.log(`Alto capturado: ${currentHigh}, Baixo capturado: ${currentLow}`);
+    
+        if (!isNaN(currentHigh) && !isNaN(currentLow)) {
+          tradeState.highPrices.push(currentHigh);
+          tradeState.lowPrices.push(currentLow);
+        } else {
+          console.log('Valores inválidos recebidos para Alto ou Baixo.');
+        }
+    
+        tradeState.closingPrices.push(currentPrice);
+        tradeState.volume.push(currentVolume);
+    
+        console.log(`Novos dados: Preço: ${currentPrice}, Volume: ${currentVolume}, Alto: ${currentHigh}, Baixo: ${currentLow}`);
+    
+        if (!indicatorsInitialized && !isIndicatorsInitializationAttempted) {
+          isIndicatorsInitializationAttempted = true;
+          await initializeIndicators(process.env.SYMBOL);
+        }
+    
+        calculateRSI();
+        calculateBollingerBands();
+        calculateMACD();
+    
+        console.log(`Indicadores: RSI: ${tradeState.rsi}, BB Upper: ${tradeState.bbUpper}, BB Lower: ${tradeState.bbLower}, MACD: ${tradeState.macd}, MACD Signal: ${tradeState.macdSignal}`);
+    
+        const emaPeriod = 10;
+        const ema = calculateEMA(tradeState.closingPrices, emaPeriod);
+    
+        if (tradeState.closingPrices.length >= 15) {
+          const atr = calculateATR(14);
+          console.log(`ATR: ${atr}`);
+          if (isFinite(atr)) {
+            const atrMultiplier = 0.1;
+            const adjustedBuyConditionsCount = Math.max(3, Math.round(atr * atrMultiplier));
+            const adjustedSellConditionsCount = Math.max(3, Math.round(atr * atrMultiplier));
+    
+            console.log(`Condições ajustadas: Compra: ${adjustedBuyConditionsCount}, Venda: ${adjustedSellConditionsCount}`);
+    
+            if (tradeState.rsi !== null && tradeState.bbUpper !== null && tradeState.bbLower !== null && tradeState.macd !== null && tradeState.macdSignal !== null) {
+              const buyConditionsMet = [
+                tradeState.rsi <= config.RSI_OVERSOLD + config.RSI_BUFFER,
+                currentPrice < tradeState.bbLower,
+                tradeState.macd < tradeState.macdSignal,
+                currentVolume > averageVolume(tradeState.volume, 15),
+                currentPrice > ema
+              ];
+    
+              console.log(`Condições de compra: RSI: ${formatBoolean(buyConditionsMet[0])}, BB Lower: ${formatBoolean(buyConditionsMet[1])}, MACD: ${formatBoolean(buyConditionsMet[2])}, Volume: ${formatBoolean(buyConditionsMet[3])}, EMA: ${formatBoolean(buyConditionsMet[4])}`);
+    
+              const trueConditionsCount = buyConditionsMet.filter(condition => condition).length;
+              console.log(`Número de condições de compra verdadeiras: ${trueConditionsCount}`);
+    
+              if (trueConditionsCount >= adjustedBuyConditionsCount) {
+                buyConditionsTrueCount++;
               } else {
-                  console.log('ATR não é um número válido.');
+                buyConditionsTrueCount = 0;
               }
+              console.log(`Contador de Condições de Compra: ${buyConditionsTrueCount}`);
+    
+              if (buyConditionsTrueCount >= adjustedBuyConditionsCount && !tradeState.isBuying && buyCount < MAX_BUY_COUNT) {
+                tradeState.buyPrice = currentPrice * (1 - config.BUY_DISCOUNT);
+                tradeState.isBuying = true;
+                console.log(`Enviando ordem de BUY: Quantidade - ${config.POSITION_SIZE}, Preço - $:${tradeState.buyPrice.toFixed(2)}`);
+                await newOrder(config.POSITION_SIZE, "BUY", currentPrice);
+                console.log(`Ordem de BUY executada: Quantidade - ${config.POSITION_SIZE}, Preço Total - $:${(tradeState.buyPrice * config.POSITION_SIZE).toFixed(2)}`);
+                tradeState.sellPrice = currentPrice * (1 + config.PROFITABILITY);
+                tradeState.stopLossPrice = currentPrice * (1 - config.STOP_LOSS_PERCENT / 100);
+                buyCount++;
+                buyConditionsTrueCount = 0;
+                console.log(`Compra executada com sucesso. Quantidade: ${config.POSITION_SIZE}, Preço Total Pago: $:${(tradeState.buyPrice * config.POSITION_SIZE).toFixed(2)}`);
+              }
+    
+              if (tradeState.isBuying) {
+                const sellConditionsMet = [
+                  tradeState.rsi >= config.RSI_OVERBOUGHT - config.RSI_BUFFER,
+                  currentPrice > tradeState.bbUpper,
+                  tradeState.macd > tradeState.macdSignal,
+                  currentVolume > averageVolume(tradeState.volume, 20),
+                  currentPrice < ema
+                ];
+    
+                console.log(`Condições de venda: RSI: ${formatBoolean(sellConditionsMet[0])}, BB Upper: ${formatBoolean(sellConditionsMet[1])}, MACD: ${formatBoolean(sellConditionsMet[2])}, Volume: ${formatBoolean(sellConditionsMet[3])}, EMA: ${formatBoolean(sellConditionsMet[4])}`);
+    
+                const trueSellConditionsCount = sellConditionsMet.filter(condition => condition).length;
+                console.log(`Número de condições de venda verdadeiras: ${trueSellConditionsCount}`);
+    
+                if (trueSellConditionsCount >= adjustedSellConditionsCount) {
+                  sellConditionsTrueCount++;
+                } else {
+                  sellConditionsTrueCount = 0;
+                }
+                console.log(`Contador de Condições de Venda: ${sellConditionsTrueCount}`);
+    
+                if (sellConditionsTrueCount >= adjustedSellConditionsCount || currentPrice <= tradeState.buyPrice * 0.98) {
+                  const executedSellPrice = currentPrice;
+                  await newOrder(config.POSITION_SIZE, "SELL", executedSellPrice);
+                  const profitOrLoss = (executedSellPrice - tradeState.buyPrice) * config.POSITION_SIZE;
+                  console.log(`Venda executada: Quantidade - ${config.POSITION_SIZE}, Preço Total de Venda - $:${(executedSellPrice * config.POSITION_SIZE).toFixed(2)}. ${(profitOrLoss > 0) ? "\x1b[32mLucro\x1b[0m" : "\x1b[31mPrejuízo\x1b[0m"}: $:${profitOrLoss.toFixed(2)}`);
+                  tradeState.sellPrice = 0;
+                  tradeState.stopLossPrice = 0;
+                  tradeState.isBuying = false;
+                  isOrderExecuted = false;
+                  buyCount = 0;
+                  sellConditionsTrueCount = 0;
+                  console.log("Venda executada com sucesso. Preço de venda: $:" + executedSellPrice.toFixed(2));
+                }
+              }
+    
+              if (tradeState.isBuying && currentPrice > tradeState.buyPrice) {
+                tradeState.stopLossPrice = calculateTrailingStopLoss(currentPrice, tradeState.buyPrice);
+              }
+            }
           } else {
-              console.log('Dados insuficientes para calcular o ATR.');
+            console.log('ATR não é um número válido.');
           }
+        } else {
+          console.log('Dados insuficientes para calcular o ATR.');
+        }
       } catch (error) {
-          console.error("Erro ao processar mensagem:", error);
-          isIndicatorsInitializationAttempted = false;
+        console.error("Erro ao processar mensagem:", error);
+        isIndicatorsInitializationAttempted = false;
       }
-  };
+    };
   
   
     ws.onclose = () => {
