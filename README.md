@@ -18,7 +18,7 @@ Nostradamus é um bot de negociação automatizado projetado para operar no merc
 
 1. Clone o repositório do bot:
 
-git clone https://github.com/seuusuario/nostradamus-bot.git
+ git clone https://github.com/seuusuario/nostradamus-bot.git
 
 2. Navegue até a pasta do bot e instale as dependências:
 
@@ -29,12 +29,13 @@ npm install
 
 
 3. Modifique o arquivo .env na raiz do projeto e adicione suas chaves da API da Binance e outros parâmetros de configuração:
-
+```bash
 API_KEY='sua_api_key'
 SECRET_KEY='sua_secret_key'
 SYMBOL=BTCUSDT
 PROFITABILITY=0.01
 BUY_DISCOUNT=0.01
+```
 
 ## Uso
 
