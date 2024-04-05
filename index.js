@@ -62,7 +62,6 @@ let tradeState = {
 let previousBuyConditions = null;
 let previousSellConditions = null;
 
-
 function formatBoolean(value) {
   return value ? "\x1b[32mtrue\x1b[0m" : "\x1b[31mfalse\x1b[0m";
 }
@@ -176,8 +175,6 @@ function calculateATR(period) {
   return atr;
 }
 
-
-
 // Salva os dados de negociação em um arquivo de texto
 function salvarDadosNoTxt(dados) {
   const dataFormatada = new Date().toISOString();
@@ -207,8 +204,6 @@ async function initializeIndicators(symbol) {
     calculateBollingerBands();
     calculateMACD();
 
-    
-
     // Verifique se os indicadores já foram inicializados
     if (!indicatorsInitialized) {
       console.log("Indicadores calculados e monitoramento \x1b[32mOK\x1b[0m.");
@@ -222,7 +217,6 @@ async function initializeIndicators(symbol) {
   }
 }
 
-
 // Definição de variáveis para controle de taxa de requisições
 let lastRequestTime = 0;
 const REQUEST_INTERVAL = 1000; // Intervalo mínimo entre requisições em milissegundos
@@ -230,10 +224,13 @@ const MAX_BUY_COUNT = 1; // Limite máximo de compras
 let buyCount = 0; // Contador de compras
 // Envia uma nova ordem de negociação para a Binance
 async function newOrder(quantity, side, price, attempts = 3) {
+  let timestamp; // Declaração da variável timestamp
   try {
     const currentTime = Date.now();
     const timeElapsed = currentTime - lastRequestTime;
     const waitTime = Math.max(0, REQUEST_INTERVAL - timeElapsed);
+    const serverTime = await binance.futuresTime(); // Obtém o tempo do servidor da Binance
+    timestamp = serverTime + 1000; // Ajusta o timestamp para corresponder ao tempo do servidor
 
     if (waitTime > 0) {
       await new Promise(resolve => setTimeout(resolve, waitTime));
@@ -246,10 +243,10 @@ async function newOrder(quantity, side, price, attempts = 3) {
       side,
       quantity,
       price,
-      timeInForce: 'GTC'
+      timeInForce: 'GTC',
+      timestamp 
     };
 
-    const timestamp = Date.now();
     const recvWindow = 4000;
 
     const signature = crypto
@@ -398,20 +395,28 @@ async function connectWebSocket() {
               console.log(`Número de condições de compra verdadeiras: ${trueBuyConditionsCount}`);
               console.log(`Contador de Condições de Compra: ${buyConditionsTrueCount}`);
     
+              // Inicializa a flag de sucesso da ordem de compra no estado do trade
+              tradeState.buyOrderSuccess = false;
+
               // Executa uma ordem de compra se as condições forem atendidas
               if (buyConditionsTrueCount >= adjustedBuyConditionsCount && !tradeState.isBuying && buyCount < MAX_BUY_COUNT) {
                 tradeState.buyPrice = currentPrice * (1 - config.BUY_DISCOUNT);
                 tradeState.isBuying = true;
-                await newOrder(config.POSITION_SIZE, "BUY", tradeState.buyPrice);
-                tradeState.sellPrice = currentPrice * (1 + config.PROFITABILITY);
-                tradeState.stopLossPrice = currentPrice * (1 - config.STOP_LOSS_PERCENT / 100);
-                buyCount++;
-                buyConditionsTrueCount = 0;
-                console.log(`Compra executada com sucesso. Quantidade: ${config.POSITION_SIZE}, Preço Total Pago: $:${(tradeState.buyPrice * config.POSITION_SIZE).toFixed(2)}`);
+                const orderResult = await newOrder(config.POSITION_SIZE, "BUY", tradeState.buyPrice); // Armazena o resultado da ordem
+                if (orderResult) { // Verifica se a ordem foi bem-sucedida
+                  tradeState.sellPrice = currentPrice * (1 + config.PROFITABILITY);
+                  tradeState.stopLossPrice = currentPrice * (1 - config.STOP_LOSS_PERCENT / 100);
+                  buyCount++;
+                  tradeState.buyOrderSuccess = true; // Atualiza a flag indicando sucesso na compra
+                  console.log(`Compra executada com sucesso. Quantidade: ${config.POSITION_SIZE}, Preço Total Pago: $:${(tradeState.buyPrice * config.POSITION_SIZE).toFixed(2)}`);
+                } else {
+                  tradeState.isBuying = false; // Reseta o estado de compra se a ordem falhou
+                }
+                buyConditionsTrueCount = 0; // Reseta o contador de condições de compra
               }
-    
-              // Verifica se uma posição de compra está aberta
-              if (tradeState.isBuying) {
+
+              // Verifica se uma posição de compra está aberta e se a ordem de compra foi bem-sucedida
+              if (tradeState.isBuying && tradeState.buyOrderSuccess) {
                 // Define as condições de venda
                 const sellConditionsMet = [
                   tradeState.rsi >= config.RSI_OVERBOUGHT - config.RSI_BUFFER,
@@ -420,28 +425,29 @@ async function connectWebSocket() {
                   currentVolume > averageVolume(tradeState.volume, 20),
                   currentPrice < ema
                 ];
-    
+
                 // Conta o número de condições de venda verdadeiras
                 const trueSellConditionsCount = sellConditionsMet.filter(condition => condition).length;
-    
+
                 // Atualiza o contador de condições de venda
                 if (trueSellConditionsCount >= 3) {
                   sellConditionsTrueCount++;
                 } else {
                   sellConditionsTrueCount = 0;
                 }
-    
+
                 // Registra as condições de venda e o número de condições verdadeiras
                 console.log(`Condições de venda: RSI: ${formatBoolean(sellConditionsMet[0])}, BB Upper: ${formatBoolean(sellConditionsMet[1])}, MACD: ${formatBoolean(sellConditionsMet[2])}, Volume: ${formatBoolean(sellConditionsMet[3])}, EMA: ${formatBoolean(sellConditionsMet[4])}`);
                 console.log(`Número de condições de venda verdadeiras: ${trueSellConditionsCount}`);
                 console.log(`Contador de Condições de Venda: ${sellConditionsTrueCount}`);
-    
+
                 // Executa uma ordem de venda se as condições forem atendidas
                 if (sellConditionsTrueCount >= adjustedSellConditionsCount || currentPrice <= tradeState.stopLossPrice) {
                   await newOrder(config.POSITION_SIZE, "SELL", currentPrice);
                   tradeState.isBuying = false;
+                  tradeState.buyOrderSuccess = false; // Reseta a flag de sucesso da ordem de compra
                   buyCount = 0;
-                  sellConditionsTrueCount = 0;
+                  sellConditionsTrueCount = 0; // Reseta o contador de condições de venda
                   console.log("Venda executada com sucesso. Preço de venda: $:" + currentPrice.toFixed(2));
                 }
               }
