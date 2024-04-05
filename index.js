@@ -400,10 +400,12 @@ async function connectWebSocket() {
 
               // Executa uma ordem de compra se as condições forem atendidas
               if (buyConditionsTrueCount >= adjustedBuyConditionsCount && !tradeState.isBuying && buyCount < MAX_BUY_COUNT) {
+                console.log("Tentando executar ordem de compra..."); // Log para verificar tentativa de compra
                 tradeState.buyPrice = currentPrice * (1 - config.BUY_DISCOUNT);
                 tradeState.isBuying = true;
                 const orderResult = await newOrder(config.POSITION_SIZE, "BUY", tradeState.buyPrice); // Armazena o resultado da ordem
-                if (orderResult) { // Verifica se a ordem foi bem-sucedida
+                console.log("Resultado da ordem de compra:", orderResult); // Log para verificar o resultado da ordem de compra
+                if (orderResult && orderResult.status === 'FILLED') { // Verifica se a ordem foi bem-sucedida e preenchida
                   tradeState.sellPrice = currentPrice * (1 + config.PROFITABILITY);
                   tradeState.stopLossPrice = currentPrice * (1 - config.STOP_LOSS_PERCENT / 100);
                   buyCount++;
@@ -443,12 +445,15 @@ async function connectWebSocket() {
 
                 // Executa uma ordem de venda se as condições forem atendidas
                 if (sellConditionsTrueCount >= adjustedSellConditionsCount || currentPrice <= tradeState.stopLossPrice) {
-                  await newOrder(config.POSITION_SIZE, "SELL", currentPrice);
-                  tradeState.isBuying = false;
-                  tradeState.buyOrderSuccess = false; // Reseta a flag de sucesso da ordem de compra
-                  buyCount = 0;
-                  sellConditionsTrueCount = 0; // Reseta o contador de condições de venda
-                  console.log("Venda executada com sucesso. Preço de venda: $:" + currentPrice.toFixed(2));
+                  const sellOrderResult = await newOrder(config.POSITION_SIZE, "SELL", currentPrice); // Armazena o resultado da ordem de venda
+                  console.log("Resultado da ordem de venda:", sellOrderResult); // Log para verificar o resultado da ordem de venda
+                  if (sellOrderResult && sellOrderResult.status === 'FILLED') { // Verifica se a ordem de venda foi bem-sucedida e preenchida
+                    tradeState.isBuying = false;
+                    tradeState.buyOrderSuccess = false; // Reseta a flag de sucesso da ordem de compra
+                    buyCount = 0;
+                    sellConditionsTrueCount = 0; // Reseta o contador de condições de venda
+                    console.log("Venda executada com sucesso. Preço de venda: $:" + currentPrice.toFixed(2));
+                  }
                 }
               }
     
