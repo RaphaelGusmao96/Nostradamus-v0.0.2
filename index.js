@@ -367,24 +367,22 @@ async function connectWebSocket() {
                 currentPrice > ema
               ];
     
-              console.log(`Condições de compra: RSI: ${formatBoolean(buyConditionsMet[0])}, BB Lower: ${formatBoolean(buyConditionsMet[1])}, MACD: ${formatBoolean(buyConditionsMet[2])}, Volume: ${formatBoolean(buyConditionsMet[3])}, EMA: ${formatBoolean(buyConditionsMet[4])}`);
+              const trueBuyConditionsCount = buyConditionsMet.filter(condition => condition).length;
     
-              const trueConditionsCount = buyConditionsMet.filter(condition => condition).length;
-              console.log(`Número de condições de compra verdadeiras: ${trueConditionsCount}`);
-    
-              if (trueConditionsCount >= adjustedBuyConditionsCount) {
+              if (trueBuyConditionsCount >= 4) {
                 buyConditionsTrueCount++;
               } else {
                 buyConditionsTrueCount = 0;
               }
+    
+              console.log(`Condições de compra: RSI: ${formatBoolean(buyConditionsMet[0])}, BB Lower: ${formatBoolean(buyConditionsMet[1])}, MACD: ${formatBoolean(buyConditionsMet[2])}, Volume: ${formatBoolean(buyConditionsMet[3])}, EMA: ${formatBoolean(buyConditionsMet[4])}`);
+              console.log(`Número de condições de compra verdadeiras: ${trueBuyConditionsCount}`);
               console.log(`Contador de Condições de Compra: ${buyConditionsTrueCount}`);
     
               if (buyConditionsTrueCount >= adjustedBuyConditionsCount && !tradeState.isBuying && buyCount < MAX_BUY_COUNT) {
                 tradeState.buyPrice = currentPrice * (1 - config.BUY_DISCOUNT);
                 tradeState.isBuying = true;
-                console.log(`Enviando ordem de BUY: Quantidade - ${config.POSITION_SIZE}, Preço - $:${tradeState.buyPrice.toFixed(2)}`);
-                await newOrder(config.POSITION_SIZE, "BUY", currentPrice);
-                console.log(`Ordem de BUY executada: Quantidade - ${config.POSITION_SIZE}, Preço Total - $:${(tradeState.buyPrice * config.POSITION_SIZE).toFixed(2)}`);
+                await newOrder(config.POSITION_SIZE, "BUY", tradeState.buyPrice);
                 tradeState.sellPrice = currentPrice * (1 + config.PROFITABILITY);
                 tradeState.stopLossPrice = currentPrice * (1 - config.STOP_LOSS_PERCENT / 100);
                 buyCount++;
@@ -401,30 +399,24 @@ async function connectWebSocket() {
                   currentPrice < ema
                 ];
     
-                console.log(`Condições de venda: RSI: ${formatBoolean(sellConditionsMet[0])}, BB Upper: ${formatBoolean(sellConditionsMet[1])}, MACD: ${formatBoolean(sellConditionsMet[2])}, Volume: ${formatBoolean(sellConditionsMet[3])}, EMA: ${formatBoolean(sellConditionsMet[4])}`);
-    
                 const trueSellConditionsCount = sellConditionsMet.filter(condition => condition).length;
-                console.log(`Número de condições de venda verdadeiras: ${trueSellConditionsCount}`);
     
-                if (trueSellConditionsCount >= adjustedSellConditionsCount) {
+                if (trueSellConditionsCount >= 4) {
                   sellConditionsTrueCount++;
                 } else {
                   sellConditionsTrueCount = 0;
                 }
+    
+                console.log(`Condições de venda: RSI: ${formatBoolean(sellConditionsMet[0])}, BB Upper: ${formatBoolean(sellConditionsMet[1])}, MACD: ${formatBoolean(sellConditionsMet[2])}, Volume: ${formatBoolean(sellConditionsMet[3])}, EMA: ${formatBoolean(sellConditionsMet[4])}`);
+                console.log(`Número de condições de venda verdadeiras: ${trueSellConditionsCount}`);
                 console.log(`Contador de Condições de Venda: ${sellConditionsTrueCount}`);
     
-                if (sellConditionsTrueCount >= adjustedSellConditionsCount || currentPrice <= tradeState.buyPrice * 0.98) {
-                  const executedSellPrice = currentPrice;
-                  await newOrder(config.POSITION_SIZE, "SELL", executedSellPrice);
-                  const profitOrLoss = (executedSellPrice - tradeState.buyPrice) * config.POSITION_SIZE;
-                  console.log(`Venda executada: Quantidade - ${config.POSITION_SIZE}, Preço Total de Venda - $:${(executedSellPrice * config.POSITION_SIZE).toFixed(2)}. ${(profitOrLoss > 0) ? "\x1b[32mLucro\x1b[0m" : "\x1b[31mPrejuízo\x1b[0m"}: $:${profitOrLoss.toFixed(2)}`);
-                  tradeState.sellPrice = 0;
-                  tradeState.stopLossPrice = 0;
+                if (sellConditionsTrueCount >= adjustedSellConditionsCount || currentPrice <= tradeState.stopLossPrice) {
+                  await newOrder(config.POSITION_SIZE, "SELL", currentPrice);
                   tradeState.isBuying = false;
-                  isOrderExecuted = false;
                   buyCount = 0;
                   sellConditionsTrueCount = 0;
-                  console.log("Venda executada com sucesso. Preço de venda: $:" + executedSellPrice.toFixed(2));
+                  console.log("Venda executada com sucesso. Preço de venda: $:" + currentPrice.toFixed(2));
                 }
               }
     
