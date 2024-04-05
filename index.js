@@ -223,6 +223,7 @@ const REQUEST_INTERVAL = 1000; // Intervalo mínimo entre requisições em milis
 const MAX_BUY_COUNT = 1; // Limite máximo de compras
 let buyCount = 0; // Contador de compras
 // Envia uma nova ordem de negociação para a Binance
+// Envia uma nova ordem de negociação para a Binance
 async function newOrder(quantity, side, price, attempts = 3) {
   let timestamp; // Declaração da variável timestamp
   try {
@@ -236,7 +237,9 @@ async function newOrder(quantity, side, price, attempts = 3) {
       await new Promise(resolve => setTimeout(resolve, waitTime));
     }
 
-    //console.log(`Enviando ordem de ${side}: Quantidade - ${quantity}, Preço - $:${price}`);
+    // Log dos parâmetros da ordem
+    console.log(`Enviando ordem de ${side}: Quantidade - ${quantity}, Preço - $:${price}, Timestamp - ${timestamp}`);
+
     const data = {
       symbol: process.env.SYMBOL,
       type: 'LIMIT',
@@ -244,17 +247,17 @@ async function newOrder(quantity, side, price, attempts = 3) {
       quantity,
       price,
       timeInForce: 'GTC',
-      timestamp 
+      timestamp
     };
 
     const recvWindow = 4000;
 
     const signature = crypto
       .createHmac('sha256', process.env.SECRET_KEY)
-      .update(`${new URLSearchParams({ ...data, timestamp, recvWindow })}`)
+      .update(`${new URLSearchParams({ ...data, recvWindow })}`)
       .digest('hex');
 
-    const newData = { ...data, timestamp, recvWindow, signature };
+    const newData = { ...data, recvWindow, signature };
     const qs = `?${new URLSearchParams(newData)}`;
 
     const result = await axios({
@@ -263,18 +266,25 @@ async function newOrder(quantity, side, price, attempts = 3) {
       headers: { 'X-MBX-APIKEY': process.env.API_KEY }
     });
 
-   lastRequestTime = Date.now(); // Atualiza o tempo da última requisição
-    if (attempts === 3 || attempts === 1) { // Modificação: Exibe o log apenas na primeira tentativa ou na última tentativa
-      console.log(`Ordem de ${side} executada: Quantidade - ${quantity}, Preço - $:${price}`);
-    }
+    lastRequestTime = Date.now(); // Atualiza o tempo da última requisição
+
+    // Log do resultado da ordem
+    console.log(`Ordem de ${side} executada: Quantidade - ${quantity}, Preço - $:${price}, Resultado - ${JSON.stringify(result.data)}`);
+
     return result.data;
   } catch (err) {
     console.error(`Erro ao executar a ordem ${side}:`, err);
+
+    // Log de detalhes do erro, se disponíveis
+    if (err.response) {
+      console.error("Detalhes do erro:", err.response.data);
+    }
+
     if (attempts > 1) {
       console.log(`Tentando novamente... (${attempts - 1} tentativas restantes)`);
       return newOrder(quantity, side, price, attempts - 1);
     } else {
-      console.log('Número máximo de tentativas atingido. A ordem \x1b[31mfalhou\x1b[0m.');
+      console.log('Número máximo de tentativas atingido. A ordem falhou.');
       throw err;
     }
   }
