@@ -415,6 +415,7 @@ async function connectWebSocket() {
                 const buyOrderResult = await newOrder(config.POSITION_SIZE, "BUY"); // Armazena o resultado da ordem de compra
                 console.log("Resultado da ordem de compra:", buyOrderResult); // Log para verificar o resultado da ordem de compra
                 if (buyOrderResult && buyOrderResult.status === 'FILLED') { // Verifica se a ordem de compra foi bem-sucedida e preenchida
+                    tradeState.buyOrderSuccess = true; 
                     tradeState.sellPrice = currentPrice * (1 + config.PROFITABILITY);
                     tradeState.stopLossPrice = currentPrice * (1 - config.STOP_LOSS_PERCENT / 100);
                     buyCount++;
